@@ -8,6 +8,8 @@ import branca
 
 import plotly.express as px
 
+st.set_page_config(layout="wide")
+
 @st.cache_data
 def load_data(path):
     area_df = pd.read_excel(path + 'valor_cnpq_por_area.xlsx')
@@ -43,7 +45,6 @@ df_piracicaba     = consolidado_df[consolidado_df['15_Cidade'] == 'Piracicaba'][
 
 df_completo=consolidado_df[['instituto', 'ano', 'valor2', '05 _Área', '08_Sexo', '09_Cor ou Raça']]
 
-st.set_page_config(layout="wide")
 st.title("Mapa de Investimento CNPq - Unicamp")
 
 col_f1, col_f2, col_f3, col_f4,col_f5 = st.columns([1,1,1,1,1])
@@ -293,19 +294,15 @@ with colP2:
 st.markdown(
     """
     <style>
-    /* Espaçamento extra para o footer respirar */
     #custom-footer {
         margin-top: 60px;
         padding: 20px 0;
         text-align: center;
-
-        background-color: rgba(255, 255, 255, 0); /* totalmente transparente */
-
+        background-color: rgba(255, 255, 255, 0);
         color: #555;
         font-size: 15px;
     }
 
-    /* Estilo da lista */
     #custom-footer ul {
         list-style: none;
         padding: 0;
