@@ -329,38 +329,27 @@ with colP2:
 st.markdown(
     """
     <style>
-    /* Remove margem padrão do Streamlit no fim da página */
-    .block-container {
-        padding-bottom: 120px;
-    }
-
-    /* Footer fixo no final */
+    /* Espaçamento extra para o footer respirar */
     #custom-footer {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        
-        background-color: rgba(255, 255, 255, 0); /* transparente */
-        backdrop-filter: blur(6px);
-        
+        margin-top: 60px;
+        padding: 20px 0;
         text-align: center;
-        padding: 18px 0;
-        font-size: 15px;
+
+        background-color: rgba(255, 255, 255, 0); /* totalmente transparente */
+
         color: #555;
-        
-        box-shadow: 0 -2px 8px rgba(0,0,0,0.04); /* leve profundidade */
+        font-size: 15px;
     }
 
-    /* Lista mais elegante */
+    /* Estilo da lista */
     #custom-footer ul {
         list-style: none;
-        margin: 6px 0 0 0;
         padding: 0;
+        margin: 8px 0 0 0;
     }
+
     #custom-footer li {
-        margin: 2px 0;
-        color: #444;
+        margin: 3px 0;
     }
     </style>
 
@@ -379,3 +368,4 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
