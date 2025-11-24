@@ -1,4 +1,4 @@
-import pandas as pd
+import pandas as pd 
 import numpy as np
 
 from geopy.geocoders import Nominatim
@@ -10,11 +10,6 @@ from streamlit_folium import st_folium
 import branca
 
 import plotly.express as px
-
-st.set_page_config(layout="wide") 
-st.title("Mapa de Investimento CNPq - Unicamp")
-
-# --- Funções e Carregamento de Dados (Mantidas) ---
 
 def find_coordinates(institutos):
     geolocator = Nominatim(user_agent="unicamp_geocoder")
@@ -49,11 +44,21 @@ def find_coordinates(institutos):
 
 data_path = './Dados/'
 
+area_df = pd.read_excel(data_path + 'valor_cnpq_por_area.xlsx')
+genero_df= pd.read_excel(data_path + 'valor_cnpq_por_raca_genero.xlsx')
+
 consolidado_df= pd.read_excel(data_path + 'valor_cnpq_consolidado_v2.xlsx')
 
 institutos=consolidado_df['instituto'].unique()
 institutos=np.delete(institutos, [2,7])
 
+campi=consolidado_df['15_Cidade'].unique()
+campi=np.delete(campi, 0)
+
+areas=consolidado_df["05 _Área"].unique()
+
+#coords_df=find_coordinates(institutos)
+#coords_df.to_csv(data_path + 'coords_institutos.csv', index=False)
 coords_df = pd.read_csv(data_path + 'coords_institutos.csv')
 coords_piracicaba = coords_df.copy()
 coords_piracicaba['latitude'] = -22.7018139
@@ -70,6 +75,11 @@ df_piracicaba     = consolidado_df[consolidado_df['15_Cidade'] == 'Piracicaba'][
 
 df_completo=consolidado_df[['instituto', 'ano', 'valor2', '05 _Área', '08_Sexo', '09_Cor ou Raça']]
 
+st.set_page_config(layout="wide")
+st.title("Mapa de Investimento CNPq - Unicamp")
+
+
+# --- Filtros ---
 
 col_f1, col_f2, col_f3, col_f4,col_f5 = st.columns([1,1,1,1,1])
 
@@ -141,8 +151,6 @@ campinas_center   = [-22.821, -47.0647]
 limeira_center    = [-22.5544232,-47.429059]
 piracicaba_center = [-22.7018139,-47.6503615]
 
-# APLICANDO CACHE RESOURCE: Estabiliza a criação do objeto Folium
-@st.cache_resource
 def create_map(center, df, zoom=15, unique_point=False, tiles='CartoDB positron'):
     m = folium.Map(location=center, zoom_start=zoom, tiles=tiles)
     
@@ -187,7 +195,7 @@ def create_map(center, df, zoom=15, unique_point=False, tiles='CartoDB positron'
     
     return m, colormap, min_val, max_val
 
-# --- Seção do Mapa ---
+# Colunas para responsividade: empilham em mobile.
 col1, col2 = st.columns([2, 1])
 
 with col1:
@@ -195,42 +203,28 @@ with col1:
         st.subheader("Campinas – Todos os anos")
     else:
         st.subheader(f"Campinas – Ano {ano_selecionado}")
-    
-    mapa_campinas, colormap, min_val, max_val = create_map(campinas_center, campinas, zoom=15)
+    mapa_campinas, colormap, min_val, max_val = create_map(campinas_center, campinas,zoom=15)
     colormap.add_to(mapa_campinas)
     
-    # Renderiza o mapa com a chave fixa
-    st_folium(
-        mapa_campinas, 
-        height=676, 
-        use_container_width=True,
-        key="mapa_campinas_fixed"
-    )
+    # Uso de st_folium para responsividade
+    st_folium(mapa_campinas, height=676, use_container_width=True)
+
+    
 
 with col2:
     st.subheader("Campus Limeira")
     mapa_limeira, _, _, _ = create_map(limeira_center, limeira, zoom=15, unique_point=True)
     
-    # Renderiza o mapa com a chave fixa
-    st_folium(
-        mapa_limeira, 
-        height=300, 
-        use_container_width=True,
-        key="mapa_limeira_fixed"
-    )
+    # Uso de st_folium para responsividade
+    st_folium(mapa_limeira, height=300, use_container_width=True)
+
     
     st.subheader("Campus Piracicaba")
     mapa_piracicaba, _, _, _ = create_map(piracicaba_center, piracicaba, zoom=15, unique_point=True)
     
-    # Renderiza o mapa com a chave fixa
-    st_folium(
-        mapa_piracicaba, 
-        height=300, 
-        use_container_width=True,
-        key="mapa_piracicaba_fixed"
-    )
+    # Uso de st_folium para responsividade
+    st_folium(mapa_piracicaba, height=300, use_container_width=True)
 
-# --- Seção dos Gráficos ---
 
 def aplicar_filtros_sem_ano(df):
     sexo = sexo_select if sexo_select else df["08_Sexo"].unique()
@@ -243,53 +237,26 @@ def aplicar_filtros_sem_ano(df):
         (df["05 _Área"].isin(area))
     ]
 
-# Configuração de Layout para Legenda no Topo
-LEGEND_LAYOUT = dict(
-    orientation="h",
-    yanchor="bottom",
-    y=1.02,
-    xanchor="left",
-    x=0
-)
-
-# --- Novo Gráfico de Institutos (Campinas) ---
-st.subheader("Investimento por Instituto (Campus Campinas)")
-
-if agrupar_todos:
-    df_instituto = df_campinas.copy()
-    titulo_instituto = "Total por Instituto (Todos os anos)"
-else:
-    df_instituto = camp_filtered.copy()
-    titulo_instituto = f"Total por Instituto (Ano {ano_selecionado})"
-
-df_instituto_agregado = df_instituto.groupby("instituto", as_index=False)["valor2"].sum().sort_values("valor2", ascending=True)
-
-fig_inst = px.bar(
-    df_instituto_agregado,
-    x="valor2",
-    y="instituto",
-    orientation='h',
-    title=titulo_instituto,
-    labels={"valor2": "Valor Investido (R$)", "instituto": "Instituto/Faculdade"},
-    text='valor2'
-)
-fig_inst.update_traces(texttemplate='R$ %{text:,.2s}', textposition='outside')
-fig_inst.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
-
-st.plotly_chart(fig_inst, use_container_width=True)
-
-# --------------------------------------------------------------------------------
-
 st.subheader("Investimento ao longo do tempo")
 
 stack_mode = st.toggle("Gráfico Empilhado", value=True)
 
 df_filtros_somente = aplicar_filtros_sem_ano(df_completo)
 
+# ---- por sexo ----
 df_sexo = df_filtros_somente.groupby(["ano", "08_Sexo"], as_index=False)["valor2"].sum()
 
+# ---- por raça ----
 df_raca = df_filtros_somente.groupby(["ano", "09_Cor ou Raça"], as_index=False)["valor2"].sum()
 
+# --- Configuração de Layout para Legenda no Topo (Reintroduzida) ---
+LEGEND_LAYOUT = dict(
+    orientation="h",  # Horizontal
+    yanchor="bottom",
+    y=1.02,           # Posição Y acima do plot
+    xanchor="left",
+    x=0
+)
 
 if not stack_mode:
     # GRÁFICOS DE LINHA
@@ -301,7 +268,7 @@ if not stack_mode:
         markers=True,
         title="Investimento anual por Sexo"
     )
-    fig_sexo.update_layout(legend=LEGEND_LAYOUT)
+    fig_sexo.update_layout(legend=LEGEND_LAYOUT) # Aplica o layout
 
     fig_raca = px.line(
         df_raca,
@@ -311,7 +278,7 @@ if not stack_mode:
         markers=True,
         title="Investimento anual por Raça"
     )
-    fig_raca.update_layout(legend=LEGEND_LAYOUT)
+    fig_raca.update_layout(legend=LEGEND_LAYOUT) # Aplica o layout
 else:
     # GRÁFICOS DE BARRA EMPILHADA
     fig_sexo = px.bar(
@@ -321,7 +288,7 @@ else:
         color="08_Sexo",
         title="Investimento anual por Sexo",
     )
-    fig_sexo.update_layout(barmode="stack", legend=LEGEND_LAYOUT)
+    fig_sexo.update_layout(barmode="stack", legend=LEGEND_LAYOUT) # Aplica o layout
 
     fig_raca = px.bar(
         df_raca,
@@ -330,12 +297,10 @@ else:
         color="09_Cor ou Raça",
         title="Investimento anual por Raça",
     )
-    fig_raca.update_layout(barmode="stack", legend=LEGEND_LAYOUT)
+    fig_raca.update_layout(barmode="stack", legend=LEGEND_LAYOUT) # Aplica o layout
 
 st.plotly_chart(fig_sexo, use_container_width=True)
 st.plotly_chart(fig_raca, use_container_width=True)
-
-# --------------------------------------------------------------------------------
 
 st.subheader("Distribuição Percentual do Investimento")
 
@@ -348,6 +313,7 @@ else:
     df_pie_base = aplicar_filtros(df_completo, ano=ano_selecionado)
     titulo_extra = f" (Ano {ano_selecionado})"
 
+# ---- Pizza por Sexo ----
 df_pie_sexo = df_pie_base.groupby("08_Sexo", as_index=False)["valor2"].sum()
 
 with colP1:
@@ -359,6 +325,7 @@ with colP1:
     )
     st.plotly_chart(fig_pie1, use_container_width=True)
 
+# ---- Pizza por Raça ----
 df_pie_raca = df_pie_base.groupby("09_Cor ou Raça", as_index=False)["valor2"].sum()
 
 with colP2:
@@ -370,24 +337,22 @@ with colP2:
     )
     st.plotly_chart(fig_pie2, use_container_width=True)
 
-# --------------------------------------------------------------------------------
-
 st.markdown(
     """
     <style>
-    .stApp {
-        padding-bottom: 0px; 
-    }
-    
+    /* Espaçamento extra para o footer respirar */
     #custom-footer {
         margin-top: 60px;
         padding: 20px 0;
         text-align: center;
-        background-color: rgba(255, 255, 255, 0); 
+
+        background-color: rgba(255, 255, 255, 0); /* totalmente transparente */
+
         color: #555;
         font-size: 15px;
     }
 
+    /* Estilo da lista */
     #custom-footer ul {
         list-style: none;
         padding: 0;
