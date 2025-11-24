@@ -1,4 +1,4 @@
-import pandas as pd 
+import pandas as pd
 import numpy as np
 
 from geopy.geocoders import Nominatim
@@ -7,13 +7,12 @@ from geopy.extra.rate_limiter import RateLimiter
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
-from streamlit.components.v1 import html
 import branca
 
-from branca.element import Template, MacroElement
-from folium import Element
-from streamlit import components
 import plotly.express as px
+
+st.set_page_config(layout="wide") 
+st.title("Mapa de Investimento CNPq - Unicamp")
 
 def find_coordinates(institutos):
     geolocator = Nominatim(user_agent="unicamp_geocoder")
@@ -25,7 +24,7 @@ def find_coordinates(institutos):
     longitudes = []
 
     for inst in institutos:
-        location = geocode(str(inst).strip() + ", Campinas, São Paulo, Brazil")  # melhora a precisão
+        location = geocode(str(inst).strip() + ", Campinas, São Paulo, Brazil")
         if location:
             nomes.append(inst)
             latitudes.append(location.latitude)
@@ -48,18 +47,18 @@ def find_coordinates(institutos):
 
 data_path = './Dados/'
 
-area_df = pd.read_excel(data_path + 'valor_cnpq_por_area.xlsx')
-genero_df= pd.read_excel(data_path + 'valor_cnpq_por_raca_genero.xlsx')
+# area_df = pd.read_excel(data_path + 'valor_cnpq_por_area.xlsx')
+# genero_df= pd.read_excel(data_path + 'valor_cnpq_por_raca_genero.xlsx')
 
 consolidado_df= pd.read_excel(data_path + 'valor_cnpq_consolidado_v2.xlsx')
 
 institutos=consolidado_df['instituto'].unique()
 institutos=np.delete(institutos, [2,7])
 
-campi=consolidado_df['15_Cidade'].unique()
-campi=np.delete(campi, 0)
+# campi=consolidado_df['15_Cidade'].unique()
+# campi=np.delete(campi, 0)
 
-areas=consolidado_df["05 _Área"].unique()
+# areas=consolidado_df["05 _Área"].unique()
 
 #coords_df=find_coordinates(institutos)
 #coords_df.to_csv(data_path + 'coords_institutos.csv', index=False)
@@ -78,10 +77,6 @@ df_limeira  = consolidado_df[consolidado_df['15_Cidade'] == 'Limeira'][['institu
 df_piracicaba     = consolidado_df[consolidado_df['15_Cidade'] == 'Piracicaba'][['instituto', 'ano', 'valor2', '05 _Área', '08_Sexo', '09_Cor ou Raça']]
 
 df_completo=consolidado_df[['instituto', 'ano', 'valor2', '05 _Área', '08_Sexo', '09_Cor ou Raça']]
-
-st.set_page_config(layout="wide")
-st.title("Mapa de Investimento CNPq - Unicamp")
-
 
 
 col_f1, col_f2, col_f3, col_f4,col_f5 = st.columns([1,1,1,1,1])
@@ -131,7 +126,6 @@ def aplicar_filtros(df, ano=None):
         (df["05 _Área"].isin(area))
     ]
 
-    # Se estiver agregando todos os anos → retornar tudo filtrado
     if agrupar_todos:
         return df_f
     else:
@@ -199,11 +193,6 @@ def create_map(center, df, zoom=15, unique_point=False, tiles='CartoDB positron'
     
     return m, colormap, min_val, max_val
 
-def render_static_map(m, width, height):
-    html_data = m.get_root().render()
-    components.v1.html(html_data, width=width, height=height)
-    
-
 col1, col2 = st.columns([2, 1])
 
 with col1:
@@ -211,21 +200,32 @@ with col1:
         st.subheader("Campinas – Todos os anos")
     else:
         st.subheader(f"Campinas – Ano {ano_selecionado}")
-    mapa_campinas, colormap, min_val, max_val = create_map(campinas_center, campinas,zoom=15)
-    colormap.add_to(mapa_campinas)
-    render_static_map(mapa_campinas, 900, 676)
-
     
+    mapa_campinas, colormap, min_val, max_val = create_map(campinas_center, campinas, zoom=15)
+    colormap.add_to(mapa_campinas)
+    
+    st_folium(
+        mapa_campinas, 
+        height=676, 
+        use_container_width=True
+    )
 
 with col2:
     st.subheader("Campus Limeira")
-    mapa_limeira, _, _, _ = create_map(limeira_center, limeira, zoom=15)
-    render_static_map(mapa_limeira, 450, 300)
-
+    mapa_limeira, _, _, _ = create_map(limeira_center, limeira, zoom=15, unique_point=True)
+    st_folium(
+        mapa_limeira, 
+        height=300, 
+        use_container_width=True
+    )
     
     st.subheader("Campus Piracicaba")
-    mapa_piracicaba, _, _, _ = create_map(piracicaba_center, piracicaba, zoom=15)
-    render_static_map(mapa_piracicaba, 450, 300)
+    mapa_piracicaba, _, _, _ = create_map(piracicaba_center, piracicaba, zoom=15, unique_point=True)
+    st_folium(
+        mapa_piracicaba, 
+        height=300, 
+        use_container_width=True
+    )
 
 
 def aplicar_filtros_sem_ano(df):
@@ -243,12 +243,10 @@ st.subheader("Investimento ao longo do tempo")
 
 stack_mode = st.toggle("Gráfico Empilhado", value=True)
 
-df_filtros_somente = aplicar_filtros_sem_ano(df_completo)   # sem ano
+df_filtros_somente = aplicar_filtros_sem_ano(df_completo)
 
-# ---- por sexo ----
 df_sexo = df_filtros_somente.groupby(["ano", "08_Sexo"], as_index=False)["valor2"].sum()
 
-# ---- por raça ----
 df_raca = df_filtros_somente.groupby(["ano", "09_Cor ou Raça"], as_index=False)["valor2"].sum()
 
 if not stack_mode:
@@ -302,7 +300,6 @@ else:
     df_pie_base = aplicar_filtros(df_completo, ano=ano_selecionado)
     titulo_extra = f" (Ano {ano_selecionado})"
 
-# ---- Pizza por Sexo ----
 df_pie_sexo = df_pie_base.groupby("08_Sexo", as_index=False)["valor2"].sum()
 
 with colP1:
@@ -314,7 +311,6 @@ with colP1:
     )
     st.plotly_chart(fig_pie1, use_container_width=True)
 
-# ---- Pizza por Raça ----
 df_pie_raca = df_pie_base.groupby("09_Cor ou Raça", as_index=False)["valor2"].sum()
 
 with colP2:
@@ -329,19 +325,19 @@ with colP2:
 st.markdown(
     """
     <style>
-    /* Espaçamento extra para o footer respirar */
+    .stApp {
+        padding-bottom: 0px; 
+    }
+    
     #custom-footer {
         margin-top: 60px;
         padding: 20px 0;
         text-align: center;
-
-        background-color: rgba(255, 255, 255, 0); /* totalmente transparente */
-
+        background-color: rgba(255, 255, 255, 0); 
         color: #555;
         font-size: 15px;
     }
 
-    /* Estilo da lista */
     #custom-footer ul {
         list-style: none;
         padding: 0;
