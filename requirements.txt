@@ -1,0 +1,17 @@
+streamlit==1.40.0
+pandas==2.2.2
+numpy==1.26.4
+
+# Geopy para geocodificação
+geopy==2.4.1
+
+# Folium + integração com Streamlit
+folium==0.17.0
+streamlit-folium==0.18.0
+branca==0.7.1
+
+# Plotly
+plotly==5.24.1
+
+# Necessário para renderização de HTML no Streamlit
+Jinja2==3.1.4
