@@ -109,7 +109,7 @@ area_select = col_f3.multiselect(
 
 ano_selecionado = col_f4.slider(
     "Ano",
-    int(df_completo["ano"].min()),
+    2005,
     int(df_completo["ano"].max()),
     value=2022
 )
