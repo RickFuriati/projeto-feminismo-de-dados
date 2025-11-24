@@ -47,21 +47,11 @@ def find_coordinates(institutos):
 
 data_path = './Dados/'
 
-# area_df = pd.read_excel(data_path + 'valor_cnpq_por_area.xlsx')
-# genero_df= pd.read_excel(data_path + 'valor_cnpq_por_raca_genero.xlsx')
-
 consolidado_df= pd.read_excel(data_path + 'valor_cnpq_consolidado_v2.xlsx')
 
 institutos=consolidado_df['instituto'].unique()
 institutos=np.delete(institutos, [2,7])
 
-# campi=consolidado_df['15_Cidade'].unique()
-# campi=np.delete(campi, 0)
-
-# areas=consolidado_df["05 _Área"].unique()
-
-#coords_df=find_coordinates(institutos)
-#coords_df.to_csv(data_path + 'coords_institutos.csv', index=False)
 coords_df = pd.read_csv(data_path + 'coords_institutos.csv')
 coords_piracicaba = coords_df.copy()
 coords_piracicaba['latitude'] = -22.7018139
@@ -204,6 +194,7 @@ with col1:
     mapa_campinas, colormap, min_val, max_val = create_map(campinas_center, campinas, zoom=15)
     colormap.add_to(mapa_campinas)
     
+    # NÃO ATRIBUI O RETORNO A UMA VARIÁVEL: Isso evita a recarga
     st_folium(
         mapa_campinas, 
         height=676, 
@@ -213,6 +204,7 @@ with col1:
 with col2:
     st.subheader("Campus Limeira")
     mapa_limeira, _, _, _ = create_map(limeira_center, limeira, zoom=15, unique_point=True)
+    # NÃO ATRIBUI O RETORNO A UMA VARIÁVEL: Isso evita a recarga
     st_folium(
         mapa_limeira, 
         height=300, 
@@ -221,6 +213,7 @@ with col2:
     
     st.subheader("Campus Piracicaba")
     mapa_piracicaba, _, _, _ = create_map(piracicaba_center, piracicaba, zoom=15, unique_point=True)
+    # NÃO ATRIBUI O RETORNO A UMA VARIÁVEL: Isso evita a recarga
     st_folium(
         mapa_piracicaba, 
         height=300, 
@@ -258,6 +251,14 @@ if not stack_mode:
         markers=True,
         title="Investimento anual por Sexo"
     )
+    # NOVO: Move a legenda para o topo
+    fig_sexo.update_layout(legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1.02,
+        xanchor="left",
+        x=0
+    ))
 
     fig_raca = px.line(
         df_raca,
@@ -267,6 +268,14 @@ if not stack_mode:
         markers=True,
         title="Investimento anual por Raça"
     )
+    # NOVO: Move a legenda para o topo
+    fig_raca.update_layout(legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1.02,
+        xanchor="left",
+        x=0
+    ))
 else:
     fig_sexo = px.bar(
         df_sexo,
