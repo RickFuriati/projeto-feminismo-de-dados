@@ -183,6 +183,7 @@ def create_map(center, df, zoom=15, unique_point=False, tiles='CartoDB positron'
     
     return m, colormap, min_val, max_val
 
+# --- Seção do Mapa ---
 col1, col2 = st.columns([2, 1])
 
 with col1:
@@ -194,32 +195,38 @@ with col1:
     mapa_campinas, colormap, min_val, max_val = create_map(campinas_center, campinas, zoom=15)
     colormap.add_to(mapa_campinas)
     
-    # NÃO ATRIBUI O RETORNO A UMA VARIÁVEL: Isso evita a recarga
+    # CHAVE DE CORREÇÃO: Adicionando uma 'key' fixa para estabilizar o mapa
     st_folium(
         mapa_campinas, 
         height=676, 
-        use_container_width=True
+        use_container_width=True,
+        key="mapa_campinas_fixed" 
     )
 
 with col2:
     st.subheader("Campus Limeira")
     mapa_limeira, _, _, _ = create_map(limeira_center, limeira, zoom=15, unique_point=True)
-    # NÃO ATRIBUI O RETORNO A UMA VARIÁVEL: Isso evita a recarga
+    
+    # CHAVE DE CORREÇÃO: Adicionando uma 'key' fixa para estabilizar o mapa
     st_folium(
         mapa_limeira, 
         height=300, 
-        use_container_width=True
+        use_container_width=True,
+        key="mapa_limeira_fixed"
     )
     
     st.subheader("Campus Piracicaba")
     mapa_piracicaba, _, _, _ = create_map(piracicaba_center, piracicaba, zoom=15, unique_point=True)
-    # NÃO ATRIBUI O RETORNO A UMA VARIÁVEL: Isso evita a recarga
+    
+    # CHAVE DE CORREÇÃO: Adicionando uma 'key' fixa para estabilizar o mapa
     st_folium(
         mapa_piracicaba, 
         height=300, 
-        use_container_width=True
+        use_container_width=True,
+        key="mapa_piracicaba_fixed"
     )
 
+# --- Seção dos Gráficos (Legenda Corrigida) ---
 
 def aplicar_filtros_sem_ano(df):
     sexo = sexo_select if sexo_select else df["08_Sexo"].unique()
@@ -242,7 +249,17 @@ df_sexo = df_filtros_somente.groupby(["ano", "08_Sexo"], as_index=False)["valor2
 
 df_raca = df_filtros_somente.groupby(["ano", "09_Cor ou Raça"], as_index=False)["valor2"].sum()
 
+# Configuração de Layout para Legenda no Topo
+LEGEND_LAYOUT = dict(
+    orientation="h",  # Horizontal
+    yanchor="bottom",
+    y=1.02,           # Posição Y acima do plot
+    xanchor="left",
+    x=0
+)
+
 if not stack_mode:
+    # GRÁFICOS DE LINHA
     fig_sexo = px.line(
         df_sexo,
         x="ano",
@@ -251,14 +268,7 @@ if not stack_mode:
         markers=True,
         title="Investimento anual por Sexo"
     )
-    # NOVO: Move a legenda para o topo
-    fig_sexo.update_layout(legend=dict(
-        orientation="h",
-        yanchor="bottom",
-        y=1.02,
-        xanchor="left",
-        x=0
-    ))
+    fig_sexo.update_layout(legend=LEGEND_LAYOUT) # Aplica o layout
 
     fig_raca = px.line(
         df_raca,
@@ -268,15 +278,9 @@ if not stack_mode:
         markers=True,
         title="Investimento anual por Raça"
     )
-    # NOVO: Move a legenda para o topo
-    fig_raca.update_layout(legend=dict(
-        orientation="h",
-        yanchor="bottom",
-        y=1.02,
-        xanchor="left",
-        x=0
-    ))
+    fig_raca.update_layout(legend=LEGEND_LAYOUT) # Aplica o layout
 else:
+    # GRÁFICOS DE BARRA EMPILHADA
     fig_sexo = px.bar(
         df_sexo,
         x="ano",
@@ -284,7 +288,7 @@ else:
         color="08_Sexo",
         title="Investimento anual por Sexo",
     )
-    fig_sexo.update_layout(barmode="stack")
+    fig_sexo.update_layout(barmode="stack", legend=LEGEND_LAYOUT) # Aplica o layout
 
     fig_raca = px.bar(
         df_raca,
@@ -293,7 +297,7 @@ else:
         color="09_Cor ou Raça",
         title="Investimento anual por Raça",
     )
-    fig_raca.update_layout(barmode="stack")
+    fig_raca.update_layout(barmode="stack", legend=LEGEND_LAYOUT) # Aplica o layout
 
 st.plotly_chart(fig_sexo, use_container_width=True)
 st.plotly_chart(fig_raca, use_container_width=True)
