@@ -79,67 +79,12 @@ df_piracicaba     = consolidado_df[consolidado_df['15_Cidade'] == 'Piracicaba'][
 
 df_completo=consolidado_df[['instituto', 'ano', 'valor2', '05 _Área', '08_Sexo', '09_Cor ou Raça']]
 
-st.set_page_config(layout="wide", page_title="Mapa de Investimento CNPq - Unicamp")
-
-# CSS – Layout responsivo (Opção A)
-st.markdown("""
-<style>
-/* Remove padding lateral para dar mais espaço */
-.block-container {
-    padding-left: 1rem;
-    padding-right: 1rem;
-}
-
-/* Organização em colunas só no desktop */
-@media (min-width: 800px) {
-    .desktop-cols {
-        display: grid;
-        grid-template-columns: 2fr 1fr;
-        gap: 20px;
-    }
-}
-
-/* Mobile: tudo em uma coluna */
-@media (max-width: 799px) {
-    .desktop-cols {
-        display: block;
-    }
-}
-
-/* Footer bonitão e centralizado */
-#custom-footer {
-    margin-top: 80px;
-    padding: 25px 0;
-    text-align: center;
-    color: #555;
-    font-size: 15px;
-}
-#custom-footer ul {
-    list-style: none;
-    padding: 0;
-    margin: 8px 0 0 0;
-}
-#custom-footer li {
-    margin: 4px 0;
-}
-
-/* Tornar iframe dos mapas responsivo */
-.responsive-map iframe {
-    width: 100% !important;
-    height: 100% !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# -------------------------------------
-# TÍTULO
-# -------------------------------------
+st.set_page_config(layout="wide")
 st.title("Mapa de Investimento CNPq - Unicamp")
 
-# -------------------------------------
-# FILTROS
-# -------------------------------------
-col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
+
+
+col_f1, col_f2, col_f3, col_f4,col_f5 = st.columns([1,1,1,1,1])
 
 sexo_select = col_f1.multiselect(
     "Sexo",
@@ -174,9 +119,7 @@ agrupar_todos = col_f5.toggle(
     value=False
 )
 
-# -------------------------------------
-# FUNÇÕES DE FILTRO
-# -------------------------------------
+
 def aplicar_filtros(df, ano=None):
     sexo = sexo_select if sexo_select else df["08_Sexo"].unique()
     raca = raca_select if raca_select else df["09_Cor ou Raça"].unique()
@@ -188,29 +131,17 @@ def aplicar_filtros(df, ano=None):
         (df["05 _Área"].isin(area))
     ]
 
+    # Se estiver agregando todos os anos → retornar tudo filtrado
     if agrupar_todos:
         return df_f
     else:
         return df_f[df_f["ano"] == ano]
 
 
-def aplicar_filtros_sem_ano(df):
-    sexo = sexo_select if sexo_select else df["08_Sexo"].unique()
-    raca = raca_select if raca_select else df["09_Cor ou Raça"].unique()
-    area = area_select if area_select else df["05 _Área"].unique()
-
-    return df[
-        (df["08_Sexo"].isin(sexo)) &
-        (df["09_Cor ou Raça"].isin(raca)) &
-        (df["05 _Área"].isin(area))
-    ]
-
-# -------------------------------------
-# PREPARAÇÃO DOS DADOS
-# -------------------------------------
-camp_filtered = aplicar_filtros(df_campinas, ano=ano_selecionado)
+camp_filtered = aplicar_filtros(df_campinas,ano=ano_selecionado)
 lime_filtered = aplicar_filtros(df_limeira, ano=ano_selecionado)
 pira_filtered = aplicar_filtros(df_piracicaba, ano=ano_selecionado)
+
 
 def agregate_df(df, coords):
     df_agregado = df.groupby("instituto", as_index=False).agg({"valor2": "sum"})
@@ -224,131 +155,216 @@ campinas_center   = [-22.821, -47.0647]
 limeira_center    = [-22.5544232,-47.429059]
 piracicaba_center = [-22.7018139,-47.6503615]
 
-# -------------------------------------
-# MAPA — função responsiva
-# -------------------------------------
-def create_map(center, df, zoom=15, tiles='CartoDB positron'):
+def create_map(center, df, zoom=15, unique_point=False, tiles='CartoDB positron'):
     m = folium.Map(location=center, zoom_start=zoom, tiles=tiles)
-
-    if df.empty:
-        return m
-
-    min_val = df["valor2"].min()
-    max_val = df["valor2"].max()
+    
+    min_val = df["valor2"].min() if not df.empty else 0
+    max_val = df["valor2"].max() if not df.empty else 1
 
     colormap = branca.colormap.LinearColormap(
         colors=['red','yellow','green'],
         vmin=min_val,
         vmax=max_val,
         caption='Investimento (R$)'
-    ).add_to(m)
+    )
 
-    for _, row in df.iterrows():
-        if pd.isna(row["latitude"]): 
-            continue
-
-        radius = max(5, (row["valor2"]/max_val)*30)
-        color = colormap(row["valor2"])
-
+    if unique_point:
+        total = df["valor2"].sum()
+        radius = max(5, (total/max_val)*30)
+        color = colormap(total)
         folium.CircleMarker(
-            location=[row["latitude"], row["longitude"]],
+            location=center,
             radius=radius,
-            popup=f"<b>{row['instituto']}</b><br>R$ {row['valor2']:,.2f}",
+            popup=f"<b>Total Investido:</b> R$ {total:,.2f}",
             color="black",
-            weight=0.4,
             fill=True,
             fill_color=color,
-            fill_opacity=0.85
+            fill_opacity=0.8
         ).add_to(m)
+    else:
+        for _, row in df.iterrows():
+            if pd.isna(row["latitude"]): continue
+            radius = max(5, (row["valor2"]/max_val)*30)
+            color = colormap(row["valor2"])
+            folium.CircleMarker(
+                location=[row["latitude"], row["longitude"]],
+                radius=radius,
+                popup=f"<b>{row['instituto']}</b><br>R$ {row['valor2']:,.2f}",
+                color="black",
+                weight=0.5,
+                fill=True,
+                fill_color=color,
+                fill_opacity=0.8
+            ).add_to(m)
+    
+    return m, colormap, min_val, max_val
 
-    return m
-
-def render_responsive_map(m):
+def render_static_map(m, width, height):
     html_data = m.get_root().render()
-    st.markdown('<div class="responsive-map">', unsafe_allow_html=True)
-    components.v1.html(html_data, height=500)
-    st.markdown('</div>', unsafe_allow_html=True)
+    components.v1.html(html_data, width=width, height=height)
+    
 
-# -------------------------------------
-# MAPAS (LOCAIS + RESPONSIVOS)
-# -------------------------------------
-st.subheader("Campinas – " + ("Todos os anos" if agrupar_todos else f"Ano {ano_selecionado}"))
+col1, col2 = st.columns([2, 1])
 
-m_camp = create_map(campinas_center, campinas)
-render_responsive_map(m_camp)
+with col1:
+    if agrupar_todos:
+        st.subheader("Campinas – Todos os anos")
+    else:
+        st.subheader(f"Campinas – Ano {ano_selecionado}")
+    mapa_campinas, colormap, min_val, max_val = create_map(campinas_center, campinas,zoom=15)
+    colormap.add_to(mapa_campinas)
+    render_static_map(mapa_campinas, 900, 676)
 
-st.subheader("Campus Limeira")
-m_lime = create_map(limeira_center, limeira)
-render_responsive_map(m_lime)
+    
 
-st.subheader("Campus Piracicaba")
-m_pira = create_map(piracicaba_center, piracicaba)
-render_responsive_map(m_pira)
+with col2:
+    st.subheader("Campus Limeira")
+    mapa_limeira, _, _, _ = create_map(limeira_center, limeira, zoom=15)
+    render_static_map(mapa_limeira, 450, 300)
 
-# -------------------------------------
-# GRÁFICOS TEMPORAIS
-# -------------------------------------
+    
+    st.subheader("Campus Piracicaba")
+    mapa_piracicaba, _, _, _ = create_map(piracicaba_center, piracicaba, zoom=15)
+    render_static_map(mapa_piracicaba, 450, 300)
+
+
+def aplicar_filtros_sem_ano(df):
+    sexo = sexo_select if sexo_select else df["08_Sexo"].unique()
+    raca = raca_select if raca_select else df["09_Cor ou Raça"].unique()
+    area = area_select if area_select else df["05 _Área"].unique()
+
+    return df[
+        (df["08_Sexo"].isin(sexo)) &
+        (df["09_Cor ou Raça"].isin(raca)) &
+        (df["05 _Área"].isin(area))
+    ]
+
 st.subheader("Investimento ao longo do tempo")
 
 stack_mode = st.toggle("Gráfico Empilhado", value=True)
 
-df_filtros_somente = aplicar_filtros_sem_ano(df_completo)
+df_filtros_somente = aplicar_filtros_sem_ano(df_completo)   # sem ano
 
+# ---- por sexo ----
 df_sexo = df_filtros_somente.groupby(["ano", "08_Sexo"], as_index=False)["valor2"].sum()
+
+# ---- por raça ----
 df_raca = df_filtros_somente.groupby(["ano", "09_Cor ou Raça"], as_index=False)["valor2"].sum()
 
 if not stack_mode:
-    fig_sexo = px.line(df_sexo, x="ano", y="valor2", color="08_Sexo", markers=True)
-    fig_raca = px.line(df_raca, x="ano", y="valor2", color="09_Cor ou Raça", markers=True)
+    fig_sexo = px.line(
+        df_sexo,
+        x="ano",
+        y="valor2",
+        color="08_Sexo",
+        markers=True,
+        title="Investimento anual por Sexo"
+    )
+
+    fig_raca = px.line(
+        df_raca,
+        x="ano",
+        y="valor2",
+        color="09_Cor ou Raça",
+        markers=True,
+        title="Investimento anual por Raça"
+    )
 else:
-    fig_sexo = px.bar(df_sexo, x="ano", y="valor2", color="08_Sexo")
+    fig_sexo = px.bar(
+        df_sexo,
+        x="ano",
+        y="valor2",
+        color="08_Sexo",
+        title="Investimento anual por Sexo",
+    )
     fig_sexo.update_layout(barmode="stack")
 
-    fig_raca = px.bar(df_raca, x="ano", y="valor2", color="09_Cor ou Raça")
+    fig_raca = px.bar(
+        df_raca,
+        x="ano",
+        y="valor2",
+        color="09_Cor ou Raça",
+        title="Investimento anual por Raça",
+    )
     fig_raca.update_layout(barmode="stack")
 
 st.plotly_chart(fig_sexo, use_container_width=True)
 st.plotly_chart(fig_raca, use_container_width=True)
 
-# -------------------------------------
-# PIZZAS
-# -------------------------------------
 st.subheader("Distribuição Percentual do Investimento")
 
+colP1, colP2 = st.columns(2)
+
 if agrupar_todos:
-    df_pie = df_filtros_somente
+    df_pie_base = df_filtros_somente
     titulo_extra = " (Todos os anos)"
 else:
-    df_pie = aplicar_filtros(df_completo, ano=ano_selecionado)
+    df_pie_base = aplicar_filtros(df_completo, ano=ano_selecionado)
     titulo_extra = f" (Ano {ano_selecionado})"
 
-col_p1, col_p2 = st.columns(2)
+# ---- Pizza por Sexo ----
+df_pie_sexo = df_pie_base.groupby("08_Sexo", as_index=False)["valor2"].sum()
 
-with col_p1:
-    df_pie_sexo = df_pie.groupby("08_Sexo", as_index=False)["valor2"].sum()
-    fig_pie1 = px.pie(df_pie_sexo, names="08_Sexo", values="valor2",
-                      title="Distribuição por Sexo" + titulo_extra)
+with colP1:
+    fig_pie1 = px.pie(
+        df_pie_sexo,
+        names="08_Sexo",
+        values="valor2",
+        title="Distribuição por Sexo" + titulo_extra
+    )
     st.plotly_chart(fig_pie1, use_container_width=True)
 
-with col_p2:
-    df_pie_raca = df_pie.groupby("09_Cor ou Raça", as_index=False)["valor2"].sum()
-    fig_pie2 = px.pie(df_pie_raca, names="09_Cor ou Raça", values="valor2",
-                      title="Distribuição por Raça" + titulo_extra)
+# ---- Pizza por Raça ----
+df_pie_raca = df_pie_base.groupby("09_Cor ou Raça", as_index=False)["valor2"].sum()
+
+with colP2:
+    fig_pie2 = px.pie(
+        df_pie_raca,
+        names="09_Cor ou Raça",
+        values="valor2",
+        title="Distribuição por Raça" + titulo_extra
+    )
     st.plotly_chart(fig_pie2, use_container_width=True)
 
-# -------------------------------------
-# FOOTER
-# -------------------------------------
-st.markdown("""
-<div id="custom-footer">
-    Projeto final desenvolvido na disciplina de Pós-Graduação 
-    <b>Feminismo de Dados</b> do IC-Unicamp, ministrada pela 
-    Professora <b>Sandra Ávila</b> em 2025.<br>
-    <span style="color:#777;">Desenvolvido por:</span>
-    <ul>
-        <li>Amanda Imperial Girelli</li>
-        <li>Ricardo Henrique Guedes Furiati</li>
-        <li>Vitória Maria Carneiro Mathias</li>
-    </ul>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    """
+    <style>
+    /* Espaçamento extra para o footer respirar */
+    #custom-footer {
+        margin-top: 60px;
+        padding: 20px 0;
+        text-align: center;
+
+        background-color: rgba(255, 255, 255, 0); /* totalmente transparente */
+
+        color: #555;
+        font-size: 15px;
+    }
+
+    /* Estilo da lista */
+    #custom-footer ul {
+        list-style: none;
+        padding: 0;
+        margin: 8px 0 0 0;
+    }
+
+    #custom-footer li {
+        margin: 3px 0;
+    }
+    </style>
+
+    <div id="custom-footer">
+        Projeto final desenvolvido na disciplina de Pós-Graduação 
+        <b>Feminismo de Dados</b> do IC-Unicamp, ministrada pela 
+        Professora <b>Sandra Ávila</b> em 2025.
+        <br>
+        <span style="color:#777;">Desenvolvido por:</span>
+        <ul>
+            <li>Amanda Imperial Girelli</li>
+            <li>Ricardo Henrique Guedes Furiati</li>
+            <li>Vitória Maria Carneiro Mathias</li>
+        </ul>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
