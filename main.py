@@ -1,8 +1,5 @@
-import pandas as pd 
+import pandas as pd
 import numpy as np
-
-from geopy.geocoders import Nominatim
-from geopy.extra.rate_limiter import RateLimiter
 
 import streamlit as st
 import folium
@@ -11,43 +8,18 @@ import branca
 
 import plotly.express as px
 
-def find_coordinates(institutos):
-    geolocator = Nominatim(user_agent="unicamp_geocoder")
-
-    geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1)
-
-    nomes = []
-    latitudes = []
-    longitudes = []
-
-    for inst in institutos:
-        location = geocode(str(inst).strip() + ", Campinas, São Paulo, Brazil")
-        if location:
-            nomes.append(inst)
-            latitudes.append(location.latitude)
-            longitudes.append(location.longitude)
-        else:
-            nomes.append(inst)
-            latitudes.append(None)
-            longitudes.append(None)
-
-    df_coords = pd.DataFrame({
-        "instituto": nomes,
-        "latitude": latitudes,
-        "longitude": longitudes
-    })
-
-    df_coords.loc[df_coords['instituto'] == 'FECFAU', ['latitude', 'longitude']] = [-22.8184, -47.0604]
-    df_coords.loc[df_coords['instituto'] == 'FCA', ['latitude', 'longitude']] = [-22.55742,-47.4345065]
-    return df_coords
-
+@st.cache_data
+def load_data(path):
+    area_df = pd.read_excel(path + 'valor_cnpq_por_area.xlsx')
+    genero_df= pd.read_excel(path + 'valor_cnpq_por_raca_genero.xlsx')
+    consolidado_df= pd.read_excel(path + 'valor_cnpq_consolidado_v2.xlsx')
+    
+    coords_df = pd.read_csv(path + 'coords_institutos.csv')
+    
+    return area_df, genero_df, consolidado_df, coords_df
 
 data_path = './Dados/'
-
-area_df = pd.read_excel(data_path + 'valor_cnpq_por_area.xlsx')
-genero_df= pd.read_excel(data_path + 'valor_cnpq_por_raca_genero.xlsx')
-
-consolidado_df= pd.read_excel(data_path + 'valor_cnpq_consolidado_v2.xlsx')
+area_df, genero_df, consolidado_df, coords_df = load_data(data_path)
 
 institutos=consolidado_df['instituto'].unique()
 institutos=np.delete(institutos, [2,7])
@@ -57,9 +29,6 @@ campi=np.delete(campi, 0)
 
 areas=consolidado_df["05 _Área"].unique()
 
-#coords_df=find_coordinates(institutos)
-#coords_df.to_csv(data_path + 'coords_institutos.csv', index=False)
-coords_df = pd.read_csv(data_path + 'coords_institutos.csv')
 coords_piracicaba = coords_df.copy()
 coords_piracicaba['latitude'] = -22.7018139
 coords_piracicaba['longitude'] = -47.6503615
@@ -67,7 +36,6 @@ coords_piracicaba['longitude'] = -47.6503615
 coords_limeira= coords_df.copy()
 coords_limeira['latitude'] = -22.5544232
 coords_limeira['longitude'] = -47.429059
-
 
 df_campinas = consolidado_df[consolidado_df['15_Cidade'] == 'Campinas'][['instituto', 'ano', 'valor2', '05 _Área', '08_Sexo', '09_Cor ou Raça']]
 df_limeira  = consolidado_df[consolidado_df['15_Cidade'] == 'Limeira'][['instituto', 'ano', 'valor2', '05 _Área', '08_Sexo', '09_Cor ou Raça']]
@@ -77,9 +45,6 @@ df_completo=consolidado_df[['instituto', 'ano', 'valor2', '05 _Área', '08_Sexo'
 
 st.set_page_config(layout="wide")
 st.title("Mapa de Investimento CNPq - Unicamp")
-
-
-# --- Filtros ---
 
 col_f1, col_f2, col_f3, col_f4,col_f5 = st.columns([1,1,1,1,1])
 
@@ -116,8 +81,8 @@ agrupar_todos = col_f5.toggle(
     value=False
 )
 
-
-def aplicar_filtros(df, ano=None):
+@st.cache_data
+def aplicar_filtros(df, sexo_select, raca_select, area_select, agrupar_todos, ano=None):
     sexo = sexo_select if sexo_select else df["08_Sexo"].unique()
     raca = raca_select if raca_select else df["09_Cor ou Raça"].unique()
     area = area_select if area_select else df["05 _Área"].unique()
@@ -133,12 +98,11 @@ def aplicar_filtros(df, ano=None):
     else:
         return df_f[df_f["ano"] == ano]
 
+camp_filtered = aplicar_filtros(df_campinas, sexo_select, raca_select, area_select, agrupar_todos, ano=ano_selecionado)
+lime_filtered = aplicar_filtros(df_limeira, sexo_select, raca_select, area_select, agrupar_todos, ano=ano_selecionado)
+pira_filtered = aplicar_filtros(df_piracicaba, sexo_select, raca_select, area_select, agrupar_todos, ano=ano_selecionado)
 
-camp_filtered = aplicar_filtros(df_campinas,ano=ano_selecionado)
-lime_filtered = aplicar_filtros(df_limeira, ano=ano_selecionado)
-pira_filtered = aplicar_filtros(df_piracicaba, ano=ano_selecionado)
-
-
+@st.cache_data
 def agregate_df(df, coords):
     df_agregado = df.groupby("instituto", as_index=False).agg({"valor2": "sum"})
     return df_agregado.merge(coords, on="instituto", how="left")
@@ -151,6 +115,7 @@ campinas_center   = [-22.821, -47.0647]
 limeira_center    = [-22.5544232,-47.429059]
 piracicaba_center = [-22.7018139,-47.6503615]
 
+@st.cache_data
 def create_map(center, df, zoom=15, unique_point=False, tiles='CartoDB positron'):
     m = folium.Map(location=center, zoom_start=zoom, tiles=tiles)
     
@@ -166,8 +131,8 @@ def create_map(center, df, zoom=15, unique_point=False, tiles='CartoDB positron'
 
     if unique_point:
         total = df["valor2"].sum()
-        radius = max(5, (total/max_val)*30)
-        color = colormap(total)
+        radius = max(5, (total/max_val)*30) if max_val > 0 else 5 
+        color = colormap(total) if max_val > 0 else colormap(0)
         folium.CircleMarker(
             location=center,
             radius=radius,
@@ -180,8 +145,8 @@ def create_map(center, df, zoom=15, unique_point=False, tiles='CartoDB positron'
     else:
         for _, row in df.iterrows():
             if pd.isna(row["latitude"]): continue
-            radius = max(5, (row["valor2"]/max_val)*30)
-            color = colormap(row["valor2"])
+            radius = max(5, (row["valor2"]/max_val)*30) if max_val > 0 else 5
+            color = colormap(row["valor2"]) if max_val > 0 else colormap(0)
             folium.CircleMarker(
                 location=[row["latitude"], row["longitude"]],
                 radius=radius,
@@ -195,7 +160,6 @@ def create_map(center, df, zoom=15, unique_point=False, tiles='CartoDB positron'
     
     return m, colormap, min_val, max_val
 
-# Colunas para responsividade: empilham em mobile.
 col1, col2 = st.columns([2, 1])
 
 with col1:
@@ -206,27 +170,23 @@ with col1:
     mapa_campinas, colormap, min_val, max_val = create_map(campinas_center, campinas,zoom=15)
     colormap.add_to(mapa_campinas)
     
-    # Uso de st_folium para responsividade
     st_folium(mapa_campinas, height=676, use_container_width=True)
-
-    
 
 with col2:
     st.subheader("Campus Limeira")
     mapa_limeira, _, _, _ = create_map(limeira_center, limeira, zoom=15, unique_point=True)
     
-    # Uso de st_folium para responsividade
     st_folium(mapa_limeira, height=300, use_container_width=True)
 
     
     st.subheader("Campus Piracicaba")
     mapa_piracicaba, _, _, _ = create_map(piracicaba_center, piracicaba, zoom=15, unique_point=True)
     
-    # Uso de st_folium para responsividade
     st_folium(mapa_piracicaba, height=300, use_container_width=True)
 
 
-def aplicar_filtros_sem_ano(df):
+@st.cache_data
+def aplicar_filtros_sem_ano(df, sexo_select, raca_select, area_select):
     sexo = sexo_select if sexo_select else df["08_Sexo"].unique()
     raca = raca_select if raca_select else df["09_Cor ou Raça"].unique()
     area = area_select if area_select else df["05 _Área"].unique()
@@ -241,63 +201,50 @@ st.subheader("Investimento ao longo do tempo")
 
 stack_mode = st.toggle("Gráfico Empilhado", value=True)
 
-df_filtros_somente = aplicar_filtros_sem_ano(df_completo)
+df_filtros_somente = aplicar_filtros_sem_ano(df_completo, sexo_select, raca_select, area_select)
 
-# ---- por sexo ----
-df_sexo = df_filtros_somente.groupby(["ano", "08_Sexo"], as_index=False)["valor2"].sum()
+@st.cache_data
+def group_by_sexo(df):
+    return df.groupby(["ano", "08_Sexo"], as_index=False)["valor2"].sum()
 
-# ---- por raça ----
-df_raca = df_filtros_somente.groupby(["ano", "09_Cor ou Raça"], as_index=False)["valor2"].sum()
+df_sexo = group_by_sexo(df_filtros_somente)
 
-# --- Configuração de Layout para Legenda no Topo (Reintroduzida) ---
+@st.cache_data
+def group_by_raca(df):
+    return df.groupby(["ano", "09_Cor ou Raça"], as_index=False)["valor2"].sum()
+
+df_raca = group_by_raca(df_filtros_somente)
+
 LEGEND_LAYOUT = dict(
-    orientation="h",  # Horizontal
+    orientation="h",
     yanchor="bottom",
-    y=1.02,           # Posição Y acima do plot
+    y=1.02,
     xanchor="left",
     x=0
 )
 
-if not stack_mode:
-    # GRÁFICOS DE LINHA
-    fig_sexo = px.line(
-        df_sexo,
-        x="ano",
-        y="valor2",
-        color="08_Sexo",
-        markers=True,
-        title="Investimento anual por Sexo"
-    )
-    fig_sexo.update_layout(legend=LEGEND_LAYOUT) # Aplica o layout
+@st.cache_data
+def create_chart_sexo(df_sexo, stack_mode):
+    if not stack_mode:
+        fig = px.line(df_sexo, x="ano", y="valor2", color="08_Sexo", markers=True, title="Investimento anual por Sexo")
+        fig.update_layout(legend=LEGEND_LAYOUT)
+    else:
+        fig = px.bar(df_sexo, x="ano", y="valor2", color="08_Sexo", title="Investimento anual por Sexo")
+        fig.update_layout(barmode="stack", legend=LEGEND_LAYOUT)
+    return fig
 
-    fig_raca = px.line(
-        df_raca,
-        x="ano",
-        y="valor2",
-        color="09_Cor ou Raça",
-        markers=True,
-        title="Investimento anual por Raça"
-    )
-    fig_raca.update_layout(legend=LEGEND_LAYOUT) # Aplica o layout
-else:
-    # GRÁFICOS DE BARRA EMPILHADA
-    fig_sexo = px.bar(
-        df_sexo,
-        x="ano",
-        y="valor2",
-        color="08_Sexo",
-        title="Investimento anual por Sexo",
-    )
-    fig_sexo.update_layout(barmode="stack", legend=LEGEND_LAYOUT) # Aplica o layout
+@st.cache_data
+def create_chart_raca(df_raca, stack_mode):
+    if not stack_mode:
+        fig = px.line(df_raca, x="ano", y="valor2", color="09_Cor ou Raça", markers=True, title="Investimento anual por Raça")
+        fig.update_layout(legend=LEGEND_LAYOUT)
+    else:
+        fig = px.bar(df_raca, x="ano", y="valor2", color="09_Cor ou Raça", title="Investimento anual por Raça")
+        fig.update_layout(barmode="stack", legend=LEGEND_LAYOUT)
+    return fig
 
-    fig_raca = px.bar(
-        df_raca,
-        x="ano",
-        y="valor2",
-        color="09_Cor ou Raça",
-        title="Investimento anual por Raça",
-    )
-    fig_raca.update_layout(barmode="stack", legend=LEGEND_LAYOUT) # Aplica o layout
+fig_sexo = create_chart_sexo(df_sexo, stack_mode)
+fig_raca = create_chart_raca(df_raca, stack_mode)
 
 st.plotly_chart(fig_sexo, use_container_width=True)
 st.plotly_chart(fig_raca, use_container_width=True)
@@ -310,11 +257,14 @@ if agrupar_todos:
     df_pie_base = df_filtros_somente
     titulo_extra = " (Todos os anos)"
 else:
-    df_pie_base = aplicar_filtros(df_completo, ano=ano_selecionado)
+    df_pie_base = aplicar_filtros(df_completo, sexo_select, raca_select, area_select, agrupar_todos, ano=ano_selecionado)
     titulo_extra = f" (Ano {ano_selecionado})"
 
-# ---- Pizza por Sexo ----
-df_pie_sexo = df_pie_base.groupby("08_Sexo", as_index=False)["valor2"].sum()
+@st.cache_data
+def group_pie_sexo(df):
+    return df.groupby("08_Sexo", as_index=False)["valor2"].sum()
+
+df_pie_sexo = group_pie_sexo(df_pie_base)
 
 with colP1:
     fig_pie1 = px.pie(
@@ -325,8 +275,11 @@ with colP1:
     )
     st.plotly_chart(fig_pie1, use_container_width=True)
 
-# ---- Pizza por Raça ----
-df_pie_raca = df_pie_base.groupby("09_Cor ou Raça", as_index=False)["valor2"].sum()
+@st.cache_data
+def group_pie_raca(df):
+    return df.groupby("09_Cor ou Raça", as_index=False)["valor2"].sum()
+
+df_pie_raca = group_pie_raca(df_pie_base)
 
 with colP2:
     fig_pie2 = px.pie(
